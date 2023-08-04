@@ -21,6 +21,9 @@ in
 
                     - `api`:
         	      Do not redirect anywhere : directly return 401 error.
+
+                    - `off`:
+               disable authentification.
       '';
     };
 

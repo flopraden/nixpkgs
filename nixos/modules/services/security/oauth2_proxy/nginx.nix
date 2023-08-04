@@ -17,13 +17,17 @@ let
           sha256Rule = sha256 rule;
           hash = substring 0 sizeAuthHash sha256Rule;
         in
-        { inherit hash rule; inherit (loc) extraConfig typeAuth; }
+      {
+        inherit rule;
+        inherit (loc) extraConfig typeAuth;
+        hash = (if loc.typeAuth == "off" then "NOHASH" else hash); # If typeAuth == off, do not register auth internal endpoint
+      }
       )
       vh.locations)
     cfg.virtualHosts;
   mkAuthLocation = { hash, rule, ... }: {
     name = "/oauth2/auth/${hash}";
-    value = {
+    value =  if hash == "NOHASH" then {} else {
       proxyPass = cfg.proxy + "/oauth2/auth" + (if rule == "" then "" else "?" + rule);
       extraConfig = ''
         	        internal;
@@ -34,10 +38,14 @@ let
       '';
     };
   };
-  authLocations = vhName: vh: listToAttrs (attrValues (listToAttrs (map (loc: { name = loc.hash; value = mkAuthLocation loc; }) (attrValues vh))));
+  authLocations = vhName: vh: listToAttrs (attrValues (listToAttrs (filter (el: el.name != "NOHASH") (map (loc: { name = loc.hash; value = mkAuthLocation loc; }) (attrValues vh)))));
   protectLocations = vhName: vh: mapAttrs
     (locName: loc: {
-      extraConfig = ''
+      extraConfig = if loc.typeAuth == "off" then
+       ''
+         auth_request  "off";
+       ''
+       else ''
                 auth_request /oauth2/auth/${loc.hash};
                 error_page 401 = ${cfg.proxy}/oauth2/${if loc.typeAuth == "login" then "sign_in" else loc.typeAuth}?rd=$scheme://$host$request_uri;
 
